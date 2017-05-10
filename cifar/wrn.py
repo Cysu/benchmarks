@@ -4,10 +4,6 @@ import json
 import sys
 import os.path as osp
 
-from torch.autograd import Variable
-
-from evaluation_metrics import accuracy
-
 try:
     from time import perf_counter as tic
 except ImportError:
@@ -16,6 +12,7 @@ except ImportError:
 import numpy as np
 import torch
 from torch import nn
+from torch.autograd import Variable
 from torch.backends import cudnn
 from torch.nn import init, DataParallel
 from torch.optim import SGD, Adam
@@ -23,14 +20,15 @@ from torch.utils.data import DataLoader
 from torchvision import transforms as T
 from torchvision.datasets import CIFAR10, CIFAR100
 
+this_dir = osp.dirname(osp.abspath(__file__))
+if osp.join(this_dir, '..') not in sys.path:
+    sys.path.insert(0, osp.join(this_dir, '..'))
+
+from evaluation_metrics import accuracy
 from utils.logging import Logger
 from utils.meters import AverageMeter
 from utils.osutils import mkdir_if_missing
 from utils.serialization import load_checkpoint, save_checkpoint
-
-this_dir = osp.dirname(osp.abspath(__file__))
-if osp.join(this_dir, '..') not in sys.path:
-    sys.path.insert(0, osp.join(this_dir, '..'))
 
 
 class BasicBlock(nn.Module):
