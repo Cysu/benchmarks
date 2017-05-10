@@ -244,6 +244,7 @@ def main(args):
         torch.cuda.manual_seed_all(args.seed)
         cudnn.benchmark = True
 
+    # Logs directory
     mkdir_if_missing(args.logs_dir)
     if not args.eval_only:
         sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
