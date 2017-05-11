@@ -136,7 +136,7 @@ def get_datasets(dataset, data_dir):
     train_dataset = cls(data_dir, download=True, train=True,
                         transform=T.Compose([
                             T.RandomHorizontalFlip(),
-                            T.RandomCrop(32),
+                            T.RandomCrop(32, 4),
                             T.ToTensor(),
                             normalizer,
                         ]))
