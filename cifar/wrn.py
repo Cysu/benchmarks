@@ -36,11 +36,11 @@ class BasicBlock(nn.Module):
         super(BasicBlock, self).__init__()
 
         self.bn1 = nn.BatchNorm2d(in_channels)
-        self.relu1 = nn.ReLU(inplace=True)
+        self.relu1 = nn.ReLU()
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3,
                                stride=stride, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(out_channels)
-        self.relu2 = nn.ReLU(inplace=True)
+        self.relu2 = nn.ReLU()
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3,
                                stride=1, padding=1, bias=False)
 
@@ -96,7 +96,7 @@ class WideResNet(nn.Module):
         self.block2 = NetworkBlock(n, 16 * width, 32 * width, 2, dropout_rate)
         self.block3 = NetworkBlock(n, 32 * width, 64 * width, 2, dropout_rate)
         self.bn = nn.BatchNorm2d(64 * width)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
         self.pool = nn.AdaptiveMaxPool2d(1)
         self.fc = nn.Linear(64 * width, num_classes)
 
