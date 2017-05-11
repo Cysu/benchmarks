@@ -74,7 +74,7 @@ class NetworkBlock(nn.Module):
         layers = nn.ModuleList()
         layers.append(BasicBlock(in_channels, out_channels, stride,
                                  dropout_rate=dropout_rate))
-        for i in range(2, num_layers):
+        for _ in range(1, num_layers):
             layers.append(BasicBlock(out_channels, out_channels, 1,
                                      dropout_rate=dropout_rate))
         self.layers = layers
