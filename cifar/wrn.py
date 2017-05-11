@@ -131,18 +131,19 @@ def get_datasets(dataset, data_dir):
     else:
         cls = CIFAR100
         num_classes = 100
+    normalizer = T.Normalize(mean=[0.491, 0.482, 0.446],
+                             std=[0.247, 0.244, 0.262])
     train_dataset = cls(data_dir, download=True, train=True,
                         transform=T.Compose([
                             T.RandomHorizontalFlip(),
-                            T.Pad(4, 2),  # 2 for cv2.BORDER_REFLECT
                             T.RandomCrop(32),
                             T.ToTensor(),
-                            T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+                            normalizer,
                         ]))
     test_dataset = cls(data_dir, download=True, train=False,
                        transform=T.Compose([
                            T.ToTensor(),
-                           T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+                           normalizer,
                        ]))
     return train_dataset, test_dataset, num_classes
 
@@ -277,7 +278,7 @@ def main(args):
 
     # Optimizer
     if args.optim_method == 'sgd':
-        optimizer = SGD(model.parameters(), lr=args.lr,
+        optimizer = SGD(model.parameters(), lr=args.lr, nesterov=True,
                         momentum=0.9, weight_decay=args.weight_decay)
     else:
         optimizer = Adam(model.parameters(), lr=args.lr)
