@@ -31,6 +31,16 @@ from utils.osutils import mkdir_if_missing
 from utils.serialization import load_checkpoint, save_checkpoint
 
 
+def margin_loss(x):
+    mat = x.data.permute(1,0,2,3).contiguous()
+    mat = mat.view(mat.size(0), -1)
+    margin = mat.std(dim=1) * 0.6
+    margin = Variable(margin.view(1, -1, 1, 1).expand_as(x))
+    mask = (x >= 0).float() * 2 - 1
+    loss = (margin - mask * x).clamp(min=0).mean()
+    return loss
+
+
 class BasicBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride, dropout_rate=0):
         super(BasicBlock, self).__init__()
@@ -54,17 +64,22 @@ class BasicBlock(nn.Module):
                                       stride=stride, padding=0, bias=False)
 
     def forward(self, x):
+        loss = 0
         if self.shortcut is not None:
             x = self.relu1(self.bn1(x))
             res = x
             x = self.shortcut(x)
+            loss = loss + margin_loss(x)
         else:
             res = self.relu1(self.bn1(x))
-        res = self.relu2(self.bn2(self.conv1(res)))
+        res = self.conv1(res)
+        loss = loss + margin_loss(res)
+        res = self.relu2(self.bn2(res))
         if self.dropout is not None:
             res = self.dropout(res)
         res = self.conv2(res)
-        return x + res
+        loss = loss + margin_loss(res)
+        return x + res, loss
 
 
 class NetworkBlock(nn.Module):
@@ -80,9 +95,11 @@ class NetworkBlock(nn.Module):
         self.layers = layers
 
     def forward(self, x):
+        total_loss = 0
         for layer in self.layers:
-            x = layer(x)
-        return x
+            x, loss = layer(x)
+            total_loss = total_loss + loss
+        return x, total_loss
 
 
 class WideResNet(nn.Module):
@@ -114,14 +131,18 @@ class WideResNet(nn.Module):
 
     def forward(self, x):
         x = self.conv1(x)
-        x = self.block1(x)
-        x = self.block2(x)
-        x = self.block3(x)
+        total_loss = margin_loss(x)
+        x, loss = self.block1(x)
+        total_loss = total_loss + loss
+        x, loss = self.block2(x)
+        total_loss = total_loss + loss
+        x, loss = self.block3(x)
+        total_loss = total_loss + loss
         x = self.relu(self.bn(x))
         x = self.pool(x)
         x = x.view(x.size(0), -1)
         x = self.fc(x)
-        return x
+        return x, total_loss
 
 
 def get_datasets(dataset, data_dir):
@@ -165,7 +186,7 @@ def evaluate(epoch, data_loader, model, criterion, cpu_only=False):
         inputs = Variable(inputs, volatile=True)
         targets = Variable(targets, volatile=True)
 
-        outputs = model(inputs)
+        outputs, _ = model(inputs)
         loss = criterion(outputs, targets)
         prec1, = accuracy(outputs.data, targets.data, topk=(1,))
 
@@ -190,7 +211,7 @@ def evaluate(epoch, data_loader, model, criterion, cpu_only=False):
     return prec1_meter.avg
 
 
-def train(epoch, data_loader, model, criterion, optimizer, cpu_only=False):
+def train(epoch, data_loader, model, criterion, optimizer, margin_loss_weight, cpu_only=False):
     model.train()
 
     batch_time = AverageMeter()
@@ -207,7 +228,8 @@ def train(epoch, data_loader, model, criterion, optimizer, cpu_only=False):
         inputs = Variable(inputs)
         targets = Variable(targets)
 
-        outputs = model(inputs)
+        outputs, margin_loss = model(inputs)
+        margin_loss = margin_loss.mean()
         loss = criterion(outputs, targets)
         prec1, = accuracy(outputs.data, targets.data, topk=(1,))
 
@@ -216,6 +238,7 @@ def train(epoch, data_loader, model, criterion, optimizer, cpu_only=False):
         prec1_meter.update(prec1[0], batch_size)
 
         optimizer.zero_grad()
+        loss = loss + margin_loss_weight * margin_loss
         loss.backward()
         optimizer.step()
 
@@ -301,7 +324,7 @@ def main(args):
             g['lr'] = lr
 
         # Training
-        train(epoch, train_loader, model, criterion, optimizer, args.cpu_only)
+        train(epoch, train_loader, model, criterion, optimizer, args.margin_loss_weight, args.cpu_only)
         prec1 = evaluate(epoch, test_loader, model, criterion, args.cpu_only)
         is_best = prec1 > best_prec1
         best_prec1 = max(best_prec1, prec1)
@@ -331,6 +354,7 @@ if __name__ == '__main__':
     parser.add_argument('--depth', type=int, default=16)
     parser.add_argument('--width', type=int, default=1)
     parser.add_argument('--dropout', type=float, default=0)
+    parser.add_argument('--margin-loss-weight', type=float, default=0.01)
     # Training
     parser.add_argument('--resume', type=str, default='', metavar='PATH')
     parser.add_argument('--eval-only', action='store_true')
